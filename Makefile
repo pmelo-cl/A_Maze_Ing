@@ -89,15 +89,15 @@ clean:
 
 lint:
 	@echo "Ejecutando flake8..."
-	@$(PYTHON) -m flake8 . || echo "flake8 encontró problemas"
+	@$(PYTHON) -m flake8 . --exclude venv,build,*.egg-info,mlx_CLXV || echo "flake8 encontró problemas"
 	@echo ""
 	@echo "Ejecutando mypy..."
-	@$(PYTHON) -m mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs || echo "⚠ mypy encontró problemas"
+	@$(PYTHON) -m mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs --exclude venv,build,*.egg-info,mlx_CLXV || echo "mypy encontró problemas"
 	@echo "Lint completado"
 
 lint-strict:
 	@echo "Ejecutando flake8..."
-	@$(PYTHON) -m flake8 . || echo "flake8 encontró problemas"
+	@$(PYTHON) -m flake8 . --exclude venv,build,*.egg-info,mlx_CLXV || echo "flake8 encontró problemas"
 	@echo ""
 	@echo "Ejecutando mypy --strict..."
 	@$(PYTHON) -m mypy . --strict || echo "mypy strict encontró problemas"

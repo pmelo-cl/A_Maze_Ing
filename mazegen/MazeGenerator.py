@@ -2,6 +2,7 @@ import random
 from typing import Dict, List, Optional, Tuple, Deque
 from collections import deque
 
+
 class Cell:
     """
     Representa una celda individual en el laberinto.
@@ -87,7 +88,7 @@ class MazeGenerator:
             random.seed(self.seed)
 
     def generate(self, entry: Tuple[int, int],
-                exit_: Tuple[int, int]) -> List[List[Cell]]:
+                 exit_: Tuple[int, int]) -> List[List[Cell]]:
         """
         Genera el laberinto usando backtracking recursivo.
 
@@ -111,7 +112,7 @@ class MazeGenerator:
         return maze
 
     def shortest_path(self, entry: Tuple[int, int],
-                     exit_: Tuple[int, int]) -> str:
+                      exit_: Tuple[int, int]) -> str:
         """
         Encuentra el camino más corto usando BFS.
 
@@ -156,7 +157,7 @@ class MazeGenerator:
             for ny, nx, cw, nw, direction in neighbors:
                 if 0 <= ny < self.height and 0 <= nx < self.width:
                     self._process_neighbor(y, x, ny, nx, cw, nw,
-                                          direction, visited, prev, queue)
+                                           direction, visited, prev, queue)
 
         if not visited[fy][fx]:
             return ""
@@ -208,7 +209,8 @@ class MazeGenerator:
 
     def _add_42_pattern(self, maze: List[List[Cell]]) -> None:
         """Añade el patrón '42' al centro del laberinto."""
-        if self.height < self.PATTERN_HEIGHT or self.width < self.PATTERN_WIDTH:
+        if (self.height < self.PATTERN_HEIGHT or
+                self.width < self.PATTERN_WIDTH):
             return
 
         start_y = (self.height - self.PATTERN_HEIGHT) // 2
@@ -223,13 +225,13 @@ class MazeGenerator:
                         self._close_all_walls(maze[y][x])
 
     def _is_valid_neighbor(self, x: int, y: int,
-                          maze: List[List[Cell]]) -> bool:
+                           maze: List[List[Cell]]) -> bool:
         """Verifica si una celda es un vecino válido."""
         return (0 <= x < self.width and 0 <= y < self.height and
                 not maze[y][x].is_42)
 
     def _get_neighbors(self, x: int, y: int,
-                      maze: List[List[Cell]]) -> List[Tuple[int, int, str]]:
+                       maze: List[List[Cell]]) -> List[Tuple[int, int, str]]:
         """Obtiene vecinos válidos de una celda."""
         potential = [
             (x, y - 1, "N"), (x, y + 1, "S"),
@@ -239,7 +241,7 @@ class MazeGenerator:
                 if self._is_valid_neighbor(nx, ny, maze)]
 
     def _open_wall(self, current: Cell, nx: int, ny: int,
-                  direction: str, maze: List[List[Cell]]) -> None:
+                   direction: str, maze: List[List[Cell]]) -> None:
         """Abre la pared entre dos celdas adyacentes."""
         neighbor = maze[ny][nx]
         wall_pairs = {
@@ -262,7 +264,7 @@ class MazeGenerator:
                 self._backtrack(nx, ny, maze)
 
     def _find_start_cell(self, maze: List[List[Cell]],
-                        entry: Tuple[int, int]) -> Tuple[int, int]:
+                         entry: Tuple[int, int]) -> Tuple[int, int]:
         """Encuentra una celda de inicio válida."""
         ex, ey = entry
         if not maze[ey][ex].is_42:
@@ -279,7 +281,7 @@ class MazeGenerator:
         raise ValueError("No se encontró celda de inicio válida")
 
     def _open_boundary_wall(self, maze: List[List[Cell]],
-                           x: int, y: int) -> None:
+                            x: int, y: int) -> None:
         """Abre paredes en los bordes."""
         if x == 0:
             maze[y][x].w = True
@@ -300,10 +302,11 @@ class MazeGenerator:
         self._open_boundary_wall(maze, fx, fy)
 
     def _process_neighbor(self, y: int, x: int, ny: int, nx: int,
-                         cw: str, nw: str, direction: str,
-                         visited: List[List[bool]],
-                         prev: Dict[Tuple[int, int], Tuple[Tuple[int, int], str]],
-                         queue: Deque[Tuple[int, int]]) -> None:
+                          cw: str, nw: str, direction: str,
+                          visited: List[List[bool]],
+                          prev: Dict[Tuple[int, int],
+                                     Tuple[Tuple[int, int], str]],
+                          queue: Deque[Tuple[int, int]]) -> None:
         """Procesa un vecino en BFS."""
         if self.maze is None:
             return
@@ -312,7 +315,7 @@ class MazeGenerator:
         neighbor = self.maze[ny][nx]
 
         if (getattr(current_cell, cw) and getattr(neighbor, nw) and
-            not neighbor.is_42 and not visited[ny][nx]):
+                not neighbor.is_42 and not visited[ny][nx]):
             visited[ny][nx] = True
             prev[(ny, nx)] = ((y, x), direction)
             queue.append((ny, nx))
