@@ -1,6 +1,5 @@
 # A-Maze-ing
 
-*Este proyecto ha sido creado como parte del currículo de 42 por pmelo-cl y vhedo-ga.*
 
 ## Descripción
 
