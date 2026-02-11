@@ -130,6 +130,11 @@ El código de generación está empaquetado como un módulo Python independiente
 python3 -m pip install -e .
 
 ```
+#### Regeneración del paquete
+```bash
+cd mazegen
+python3 -m buid
+```
 
 #### Uso del Módulo
 
