@@ -25,15 +25,11 @@ El programa genera automáticamente un patrón '42' visible en el centro del lab
 ### Instalación
 
 ```bash
-# Clonar el repositorio
-git clone [url_del_repositorio]
-cd a-maze-ing
 
 # Instalar dependencias
 make venv
 source venv/bin/activate
 make install
-make install-mlx-python
 
 ```
 

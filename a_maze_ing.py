@@ -1,4 +1,3 @@
-# a_maze_ing.py
 """
 Generador de laberintos con visualización interactiva.
 
@@ -23,7 +22,7 @@ except ImportError:
         La visualización no estará disponible.")
 
 try:
-    from mazegen.MazeGenerator import MazeGenerator
+    from src.MazeGenerator import MazeGenerator
 except ImportError:
     print("Advertencia: mazegen no instalado. Usando versión embebida.")
 
@@ -791,9 +790,12 @@ def cleanup_window() -> None:
     win_ptr = maze_state.get('win_ptr')
 
     # Verificar que no son None
-    if mlx_ptr is not None and win_ptr is not None:
+    if (
+     mlx_instance is not None
+     and mlx_ptr is not None
+     and win_ptr is not None
+    ):
         try:
-            # LLAMADA CORREGIDA: usar mlx_ptr para destruir la ventana
             mlx_instance.mlx_destroy_window(mlx_ptr, win_ptr)
         except Exception as e:
             print(f"Error al limpiar ventana: {e}")
@@ -906,8 +908,6 @@ def see_maze() -> None:
         visualize_maze(maze_data)
     except Exception as e:
         print(f"Error al visualizar el laberinto: {e}")
-        import traceback
-        traceback.print_exc()
         sys.exit(1)
 
 
@@ -928,8 +928,6 @@ def main() -> None:
         sys.exit(1)
     except Exception as e:
         print(f"✗ Error inesperado: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
         sys.exit(1)
 
 

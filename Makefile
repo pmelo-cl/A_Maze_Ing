@@ -3,7 +3,7 @@ MAIN_SCRIPT = a_maze_ing.py
 CONFIG_FILE = config.txt
 PACKAGE_DIR = mazegen
 PACKAGE_NAME = mazegen
-MINILIBX_DIR = mlx_CLXV
+MINILIBX_DIR = mlx-2.2-py3-ubuntu-any
 MINILIBX_PYTHON_DIR = mlx_CLXV/python
 
 
@@ -13,7 +13,6 @@ help:
 	@echo "Comandos disponibles:"
 	@echo "  make venv         - Crear un entorno virtual"
 	@echo "  make install      - Instalar dependencias del proyecto"
-	@echo "  make install-mlx-python - Instalar minilibx para Python"
 	@echo "  make run          - Ejecutar el script principal"
 	@echo "  make debug        - Ejecutar en modo depuración"
 	@echo "  make clean        - Eliminar archivos temporales"
@@ -30,29 +29,10 @@ install:
 	@$(PYTHON) -m pip install --upgrade pip
 	@$(PYTHON) -m pip install flake8 mypy build
 	@echo "Dependencias instaladas"
-	@if [ -f "$(PACKAGE_DIR)/pyproject.toml" ]; then \
-		cd $(PACKAGE_DIR) && $(PYTHON) -m pip install -e .; \
-	elif [ -f "pyproject.toml" ]; then \
-		$(PYTHON) -m pip install -e .; \
-	else \
-		echo "Error: No se encontró pyproject.toml"; \
-		exit 1; \
-	fi
+	pip install mazegen-1.0.0-py3-none-any.whl;
 	@echo "Paquete mazegen instalado en modo editable"
-	@if [ -d "$(MINILIBX_DIR)" ]; then \
-		echo "Compilando minilibx..."; \
-		cd $(MINILIBX_DIR) && make; \
-	else \
-		echo "Advertencia: No se encontró el directorio $(MINILIBX_DIR). Asegúrate de que esté presente para la visualización."; \
-	fi
-
-install-mlx-python:
-	@echo "Instalando minilibx para Python..."
-	@if [ -d "$(MINILIBX_PYTHON_DIR)" ]; then \
-		cd $(MINILIBX_PYTHON_DIR) && $(PYTHON) -m pip install .; \
-	else \
-		echo "Advertencia: No se encontró el directorio $(MINILIBX_PYTHON_DIR). Asegúrate de que esté presente para la visualización."; \
-	fi
+	echo "Compilando minilibx..."; \
+	pip install mlx-2.2-py3-none-any.whl; \
 
 run:
 	@echo "Ejecutando $(MAIN_SCRIPT)..."
@@ -89,7 +69,7 @@ clean:
 
 lint:
 	@echo "Ejecutando flake8..."
-	@$(PYTHON) -m flake8 . --exclude venv,build,*.egg-info,mlx_CLXV || echo "flake8 encontró problemas"
+	@$(PYTHON) -m flake8 . --exclude venv,build,*.egg-info || echo "flake8 encontró problemas"
 	@echo ""
 	@echo "Ejecutando mypy..."
 	@$(PYTHON) -m mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs --exclude venv,build,*.egg-info,mlx_CLXV || echo "mypy encontró problemas"
@@ -97,10 +77,10 @@ lint:
 
 lint-strict:
 	@echo "Ejecutando flake8..."
-	@$(PYTHON) -m flake8 . --exclude venv,build,*.egg-info,mlx_CLXV || echo "flake8 encontró problemas"
+	@$(PYTHON) -m flake8 . --exclude venv,build,*.egg-info|| echo "flake8 encontró problemas"
 	@echo ""
 	@echo "Ejecutando mypy --strict..."
 	@$(PYTHON) -m mypy . --strict || echo "mypy strict encontró problemas"
 	@echo "Lint strict completado"
 
-.PHONY: venv install install-mlx-python run debug clean lint lint-strict help
+.PHONY: venv install run debug clean lint lint-strict help
