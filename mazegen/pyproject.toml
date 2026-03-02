@@ -6,7 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "mazegen"
 version = "1.0.0"
 authors = [
-  {name = "pmelo-cl", email = "pmelo-cl@42.fr"},
+  {name = "pmelo-cl"},
+  {name = "vhedo-ga"}
 ]
 description = "Generador de laberintos aleatorios con algoritmo de backtracking"
 readme = "README.md"
@@ -16,9 +17,6 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
 ]
 dependencies = []
-
-[project.urls]
-Homepage = "https://github.com/yourusername/a-maze-ing"
 
 [tool.setuptools.packages.find]
 where = ["."]

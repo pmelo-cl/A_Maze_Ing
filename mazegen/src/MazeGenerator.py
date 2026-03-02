@@ -5,26 +5,26 @@ from collections import deque
 
 class Cell:
     """
-    Representa una celda individual en el laberinto.
+    Represents an individual cell in the maze.
 
     Attributes:
-        x: Coordenada x de la celda.
-        y: Coordenada y de la celda.
-        n: Pared norte abierta (True) o cerrada (False).
-        s: Pared sur abierta (True) o cerrada (False).
-        e: Pared este abierta (True) o cerrada (False).
-        w: Pared oeste abierta (True) o cerrada (False).
-        visited: Indica si la celda ha sido visitada durante la generación.
-        is_42: Indica si la celda es parte del patrón '42'.
+        x: X coordinate of the cell.
+        y: Y coordinate of the cell.
+        n: North wall open (True) or closed (False).
+        s: South wall open (True) or closed (False).
+        e: East wall open (True) or closed (False).
+        w: West wall open (True) or closed (False).
+        visited: Whether the cell has been visited during generation.
+        is_42: Whether the cell is part of the '42' pattern.
     """
 
     def __init__(self, x: int, y: int) -> None:
         """
-        Inicializa una celda con todas las paredes cerradas.
+        Initializes a cell with all walls closed.
 
         Args:
-            x: Coordenada x de la celda.
-            y: Coordenada y de la celda.
+            x: X coordinate of the cell.
+            y: Y coordinate of the cell.
         """
         self.n = False
         self.s = False
@@ -38,10 +38,12 @@ class Cell:
 
 class MazeGenerator:
     """
-    Generador de laberintos usando backtracking recursivo.
+    Maze generator using iterative backtracking.
 
-    Esta clase implementa el algoritmo de backtracking recursivo para generar
-    laberintos perfectos (con un único camino entre entrada y salida).
+    This class implements the backtracking algorithm to generate
+    perfect mazes (with a single path between entry and exit).
+    An iterative version is used to avoid recursion errors on large
+    mazes (FIX 7).
 
     Example:
         >>> gen = MazeGenerator(width=20, height=15, seed=42)
@@ -50,11 +52,11 @@ class MazeGenerator:
         >>> print(f"Camino de {len(path)} pasos: {path}")
 
     Attributes:
-        width: Ancho del laberinto en celdas.
-        height: Alto del laberinto en celdas.
-        perfect: Si True, genera un laberinto perfecto.
-        seed: Semilla para reproducibilidad (opcional).
-        maze: Matriz de celdas del laberinto generado.
+        width: Width of the maze in cells.
+        height: Height of the maze in cells.
+        perfect: If True, generates a perfect maze.
+        seed: Seed for reproducibility (optional).
+        maze: Matrix of cells of the generated maze.
     """
 
     PATTERN_42 = [
@@ -70,13 +72,13 @@ class MazeGenerator:
     def __init__(self, width: int, height: int, perfect: bool = True,
                  seed: Optional[int] = None) -> None:
         """
-        Inicializa el generador de laberintos.
+        Initializes the maze generator.
 
         Args:
-            width: Ancho del laberinto en celdas.
-            height: Alto del laberinto en celdas.
-            perfect: Si True, genera un laberinto perfecto.
-            seed: Semilla para reproducibilidad (opcional).
+            width: Width of the maze in cells.
+            height: Height of the maze in cells.
+            perfect: If True, generates a perfect maze.
+            seed: Seed for reproducibility (optional).
         """
         self.width = width
         self.height = height
@@ -90,21 +92,22 @@ class MazeGenerator:
     def generate(self, entry: Tuple[int, int],
                  exit_: Tuple[int, int]) -> List[List[Cell]]:
         """
-        Genera el laberinto usando backtracking recursivo.
+        Generates the maze using iterative backtracking.
 
         Args:
-            entry: Coordenadas de entrada en base-1 (x, y).
-            exit_: Coordenadas de salida en base-1 (x, y).
+            entry: Entry coordinates in 1-based index (x, y).
+            exit_: Exit coordinates in 1-based index (x, y).
 
         Returns:
-            Matriz de celdas del laberinto generado.
+            Matrix of cells of the generated maze.
         """
         entry_0 = (entry[0] - 1, entry[1] - 1)
 
         maze = self._create_closed_maze()
         self._add_42_pattern(maze)
         start_x, start_y = self._find_start_cell(maze, entry_0)
-        self._backtrack(start_x, start_y, maze)
+        # FIX 7: Use iterative version to avoid RecursionError on large mazes
+        self._backtrack_iterative(start_x, start_y, maze)
 
         self.maze = maze
         return maze
@@ -112,17 +115,17 @@ class MazeGenerator:
     def shortest_path(self, entry: Tuple[int, int],
                       exit_: Tuple[int, int]) -> str:
         """
-        Encuentra el camino más corto usando BFS.
+        Finds the shortest path using BFS.
 
         Args:
-            entry: Coordenadas de entrada en base-1 (x, y).
-            exit_: Coordenadas de salida en base-1 (x, y).
+            entry: Entry coordinates in 1-based index (x, y).
+            exit_: Exit coordinates in 1-based index (x, y).
 
         Returns:
-            String con las direcciones del camino (NSEW).
+            String with path directions (NSEW).
 
         Raises:
-            ValueError: Si el laberinto no ha sido generado.
+            ValueError: If the maze has not been generated yet.
         """
         if self.maze is None:
             raise ValueError("El laberinto no ha sido generado aún")
@@ -172,22 +175,22 @@ class MazeGenerator:
 
     def get_maze_structure(self) -> Optional[List[List[Cell]]]:
         """
-        Obtiene la estructura del laberinto generado.
+        Gets the structure of the generated maze.
 
         Returns:
-            Matriz de celdas o None si no se ha generado.
+            Cell matrix or None if not yet generated.
         """
         return self.maze
 
     def to_hex_matrix(self) -> List[str]:
         """
-        Convierte el laberinto a formato hexadecimal.
+        Converts the maze to hexadecimal format.
 
         Returns:
-            Lista de strings hexadecimales, uno por fila.
+            List of hexadecimal strings, one per row.
 
         Raises:
-            ValueError: Si el laberinto no ha sido generado.
+            ValueError: If the maze has not been generated yet.
         """
         if self.maze is None:
             raise ValueError("El laberinto no ha sido generado aún")
@@ -195,18 +198,17 @@ class MazeGenerator:
         return ["".join(self._cell_to_hex(cell) for cell in row)
                 for row in self.maze]
 
-    # Métodos privados (implementación interna)
     def _create_closed_maze(self) -> List[List[Cell]]:
-        """Crea un laberinto con todas las paredes cerradas."""
+        """Creates a maze with all walls closed."""
         return [[Cell(x, y) for x in range(self.width)]
                 for y in range(self.height)]
 
     def _close_all_walls(self, cell: Cell) -> None:
-        """Cierra todas las paredes de una celda."""
+        """Closes all walls of a cell."""
         cell.n = cell.s = cell.e = cell.w = False
 
     def _add_42_pattern(self, maze: List[List[Cell]]) -> None:
-        """Añade el patrón '42' al centro del laberinto."""
+        """Adds the '42' pattern to the center of the maze."""
         if (self.height < self.PATTERN_HEIGHT or
                 self.width < self.PATTERN_WIDTH):
             return
@@ -224,13 +226,13 @@ class MazeGenerator:
 
     def _is_valid_neighbor(self, x: int, y: int,
                            maze: List[List[Cell]]) -> bool:
-        """Verifica si una celda es un vecino válido."""
+        """Checks if a cell is a valid neighbor."""
         return (0 <= x < self.width and 0 <= y < self.height and
                 not maze[y][x].is_42)
 
     def _get_neighbors(self, x: int, y: int,
                        maze: List[List[Cell]]) -> List[Tuple[int, int, str]]:
-        """Obtiene vecinos válidos de una celda."""
+        """Gets valid neighbors of a cell."""
         potential = [
             (x, y - 1, "N"), (x, y + 1, "S"),
             (x - 1, y, "W"), (x + 1, y, "E"),
@@ -240,7 +242,7 @@ class MazeGenerator:
 
     def _open_wall(self, current: Cell, nx: int, ny: int,
                    direction: str, maze: List[List[Cell]]) -> None:
-        """Abre la pared entre dos celdas adyacentes."""
+        """Opens the wall between two adjacent cells."""
         neighbor = maze[ny][nx]
         wall_pairs = {
             "N": ("n", "s"), "S": ("s", "n"),
@@ -250,20 +252,36 @@ class MazeGenerator:
         setattr(current, cw, True)
         setattr(neighbor, nw, True)
 
-    def _backtrack(self, x: int, y: int, maze: List[List[Cell]]) -> None:
-        """Algoritmo de backtracking recursivo."""
-        maze[y][x].visited = True
-        neighbors = self._get_neighbors(x, y, maze)
-        random.shuffle(neighbors)
+    def _backtrack_iterative(self, start_x: int, start_y: int,
+                             maze: List[List[Cell]]) -> None:
+        """
+        Iterative backtracking algorithm using an explicit stack.
 
-        for nx, ny, direction in neighbors:
-            if not maze[ny][nx].visited and not maze[ny][nx].is_42:
+        FIX 7: Replaces the recursive version to avoid RecursionError
+        on large mazes where Python's call stack is exhausted.
+        """
+        stack: List[Tuple[int, int]] = [(start_x, start_y)]
+        maze[start_y][start_x].visited = True
+
+        while stack:
+            x, y = stack[-1]
+            neighbors = self._get_neighbors(x, y, maze)
+            unvisited = [(nx, ny, d) for nx, ny, d in neighbors
+                         if not maze[ny][nx].visited and
+                         not maze[ny][nx].is_42]
+
+            if unvisited:
+                random.shuffle(unvisited)
+                nx, ny, direction = unvisited[0]
                 self._open_wall(maze[y][x], nx, ny, direction, maze)
-                self._backtrack(nx, ny, maze)
+                maze[ny][nx].visited = True
+                stack.append((nx, ny))
+            else:
+                stack.pop()
 
     def _find_start_cell(self, maze: List[List[Cell]],
                          entry: Tuple[int, int]) -> Tuple[int, int]:
-        """Encuentra una celda de inicio válida."""
+        """Finds a valid starting cell."""
         ex, ey = entry
         if not maze[ey][ex].is_42:
             return ex, ey
@@ -284,7 +302,7 @@ class MazeGenerator:
                           prev: Dict[Tuple[int, int],
                                      Tuple[Tuple[int, int], str]],
                           queue: Deque[Tuple[int, int]]) -> None:
-        """Procesa un vecino en BFS."""
+        """Processes a neighbor during BFS."""
         if self.maze is None:
             return
 
@@ -298,14 +316,20 @@ class MazeGenerator:
             queue.append((ny, nx))
 
     def _cell_to_hex(self, cell: Cell) -> str:
-        """Convierte una celda a representación hexadecimal."""
+        """
+        Converts a cell to its hexadecimal representation.
+
+        Bits: active bit = CLOSED wall (no passage).
+        N=0x1, E=0x2, S=0x4, W=0x8
+        A cell with all walls closed equals 0xF.
+        """
         value = 0
         if not cell.n:
-            value |= 1
+            value |= 0x1
         if not cell.e:
-            value |= 2
+            value |= 0x2
         if not cell.s:
-            value |= 4
+            value |= 0x4
         if not cell.w:
-            value |= 8
+            value |= 0x8
         return format(value, "X")

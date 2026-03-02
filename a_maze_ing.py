@@ -1,17 +1,16 @@
 """
-Generador de laberintos con visualización interactiva.
+Maze generator with interactive visualization.
 
-Este módulo implementa un generador de laberintos aleatorios usando
-el algoritmo de backtracking recursivo, con capacidad de visualización
-gráfica usando MiniLibX.
+This module implements a random maze generator using
+the recursive backtracking algorithm, with graphical
+visualization capabilities using MiniLibX.
 """
 
-# ============================================
-# IMPORTS
-# ============================================
+import os
 import sys
 import re
 from typing import Callable, Dict, Any, List, Optional, Tuple, cast
+from collections import deque
 
 try:
     from mlx import Mlx
@@ -26,73 +25,79 @@ try:
 except ImportError:
     print("Advertencia: mazegen no instalado. Usando versión embebida.")
 
-# ============================================
-# CONSTANTES GLOBALES
-# ============================================
 CELL_SIZE = 20
+MIN_CELL_SIZE = 5
+MAX_CELL_SIZE = 50
 
-# Colores por defecto
 DEFAULT_WALL_COLOR = 0xFFFFFFFF
 DEFAULT_BG_COLOR = 0xFF000000
-DEFAULT_ENTRY_COLOR = 0xFFFF0000  # Rojo
-DEFAULT_EXIT_COLOR = 0xFF00FF00   # Verde
-DEFAULT_PATH_COLOR = 0xFF0000FF   # Azul
+DEFAULT_ENTRY_COLOR = 0xFF00FF00
+DEFAULT_EXIT_COLOR = 0xFFFF0000
+DEFAULT_PATH_COLOR = 0xFF0000FF
 DEFAULT_CLOSED_CELL_COLOR = 0xAAFFFFFF
-DEFAULT_PATTERN_42_COLOR = 0xFFFFFF00  # Amarillo
+DEFAULT_PATTERN_42_COLOR = 0xFFFFFF00
 
-# Colores alternativos
+
 ALT_WALL_COLORS = [
-    0xFFFFFFFF,  # Blanco
-    0xFFFF00FF,  # Magenta
-    0xFF00FFFF,  # Cian
-    0xFFFFFF00,  # Amarillo
-    0xFFFF8800,  # Naranja
+    0xFFFFFFFF,
+    0xFFFF00FF,
+    0xFF00FFFF,
+    0xFFFFFF00,
+    0xFFFF8800,
 ]
 
-# Teclas
+ALT_LOGO_COLORS = [
+    0xAAFFFFFF,
+    0xAAFF0000,
+    0xAA00FF00,
+    0xAA0000FF,
+    0xAAFFFF00,
+    0xAAFF00FF,
+]
+
 KEY_ESC = 65307
 KEY_ENTER = 65293
 KEY_1 = 49
-KEY_C = 99  # Para cambiar colores
+KEY_C = 99
+KEY_L = 108
+KEY_UP = 65362
+KEY_DOWN = 65364
+KEY_LEFT = 65361
+KEY_RIGHT = 65363
+KEY_PLUS1 = 61
+KEY_PLUS2 = 65451
+KEY_MINUS1 = 45
+KEY_MINUS2 = 65453
+ON_DESTROY = 33
 
-# ============================================
-# VARIABLES GLOBALES DE ESTADO
-# ============================================
 show_path_state = False
 maze_state: Optional[Dict[str, Any]] = None
 mlx_instance: Optional[Any] = None
 current_wall_color_index = 0
+current_logo_color_index = 0
 
 if MLX_AVAILABLE:
     mlx_instance = Mlx()
 
 
-# ============================================
-# EXCEPCIONES PERSONALIZADAS
-# ============================================
 class ConfigError(Exception):
-    """Excepción personalizada para errores de configuración."""
-
+    """Custom exception for configuration errors."""
     pass
-
-# ============================================
-# UTILIDADES DE ARCHIVO
-# ============================================
 
 
 def read_file_lines(filepath: str) -> List[str]:
     """
-    Lee un archivo y devuelve sus líneas sin espacios en blanco.
+    Reads a file and returns its lines stripped of whitespace.
 
     Args:
-        filepath: Ruta al archivo.
+        filepath: Path to the file.
 
     Returns:
-        Lista de líneas sin espacios en blanco.
+        List of lines stripped of whitespace.
 
     Raises:
-        FileNotFoundError: Si el archivo no existe.
-        IOError: Si hay error de lectura.
+        FileNotFoundError: If the file does not exist.
+        IOError: If a read error occurs.
     """
     try:
         with open(filepath, 'r', encoding='utf-8') as file:
@@ -105,14 +110,14 @@ def read_file_lines(filepath: str) -> List[str]:
 
 def write_file(filepath: str, content: str) -> None:
     """
-    Escribe contenido en un archivo.
+    Writes content to a file.
 
     Args:
-        filepath: Ruta al archivo.
-        content: Contenido a escribir.
+        filepath: Path to the file.
+        content: Content to write.
 
     Raises:
-        IOError: Si hay error de escritura.
+        IOError: If a write error occurs.
     """
     try:
         with open(filepath, 'w', encoding='utf-8') as file:
@@ -121,21 +126,18 @@ def write_file(filepath: str, content: str) -> None:
         raise IOError(f"Error al escribir el archivo: {e}")
 
 
-# ============================================
-# PARSER DE CONFIGURACIÓN
-# ============================================
 def parse_coordinate(coord_str: str) -> Tuple[int, int]:
     """
-    Parsea una cadena de coordenadas 'x,y' a una tupla (x, y).
+    Parses a coordinate string 'x,y' into a tuple (x, y).
 
     Args:
-        coord_str: Cadena con formato "x,y".
+        coord_str: String in the format "x,y".
 
     Returns:
-        Tupla con las coordenadas (x, y).
+        Tuple with the coordinates (x, y).
 
     Raises:
-        ValueError: Si el formato es inválido.
+        ValueError: If the format is invalid.
     """
     parts = coord_str.split(',')
     if len(parts) != 2:
@@ -145,13 +147,13 @@ def parse_coordinate(coord_str: str) -> Tuple[int, int]:
 
 def parse_boolean(bool_str: str) -> bool:
     """
-    Parsea una cadena a booleano.
+    Parses a string into a boolean value.
 
     Args:
-        bool_str: Cadena con "true" o "false" (case-insensitive).
+        bool_str: String containing "true" or "false" (case-insensitive).
 
     Returns:
-        Valor booleano correspondiente.
+        Corresponding boolean value.
     """
     return bool_str.lower() == "true"
 
@@ -159,14 +161,14 @@ def parse_boolean(bool_str: str) -> bool:
 def validate_coordinates(entry: Tuple[int, int], exit_: Tuple[int, int]
                          ) -> None:
     """
-    Valida que las coordenadas sean correctas.
+    Validates that the coordinates are correct.
 
     Args:
-        entry: Coordenadas de entrada.
-        exit_: Coordenadas de salida.
+        entry: Entry coordinates.
+        exit_: Exit coordinates.
 
     Raises:
-        ConfigError: Si las coordenadas son inválidas.
+        ConfigError: If the coordinates are invalid.
     """
     if not isinstance(entry, tuple) or len(entry) != 2:
         raise ConfigError("ENTRY debe ser una tupla de dos enteros (x, y)")
@@ -178,21 +180,19 @@ def validate_coordinates(entry: Tuple[int, int], exit_: Tuple[int, int]
 
 def parse_config(config_path: str) -> Dict[str, Any]:
     """
-    Parsea el archivo de configuración y devuelve un
-    diccionario con los valores.
+    Parses the configuration file and returns a dictionary with the values.
 
     Args:
-        config_path: Ruta al archivo de configuración.
+        config_path: Path to the configuration file.
 
     Returns:
-        Diccionario con las claves y valores parseados.
+        Dictionary with the parsed keys and values.
 
     Raises:
-        ConfigError: Si hay algún error en el formato,
-        valores faltantes o inválidos.
-        FileNotFoundError: Si el archivo no existe.
+        ConfigError: If there is any error in the format,
+        missing or invalid values.
+        FileNotFoundError: If the file does not exist.
     """
-    # Claves obligatorias y sus tipos (conversor)
     REQUIRED_KEYS = {
         "WIDTH": int,
         "HEIGHT": int,
@@ -206,11 +206,9 @@ def parse_config(config_path: str) -> Dict[str, Any]:
     lines = read_file_lines(config_path)
 
     for line_num, line in enumerate(lines, start=1):
-        # Ignorar comentarios
         if line.startswith('#'):
             continue
 
-        # Separar clave y valor (solo primer '=')
         if '=' not in line:
             raise ConfigError(
                 f"Línea {line_num}: Formato inválido, se esperaba 'KEY=VALUE'"
@@ -219,14 +217,12 @@ def parse_config(config_path: str) -> Dict[str, Any]:
         key, value = line.split('=', 1)
         config[key.strip()] = value.strip()
 
-    # Validar claves obligatorias
     missing_keys = [key for key in REQUIRED_KEYS if key not in config]
     if missing_keys:
         raise ConfigError(
             f"Claves obligatorias faltantes: {missing_keys}"
         )
 
-    # Convertir valores a los tipos esperados
     for key, converter in REQUIRED_KEYS.items():
         try:
             if key not in config:
@@ -247,7 +243,6 @@ def parse_config(config_path: str) -> Dict[str, Any]:
                 f"Error al convertir '{key}': {config.get(key, 'N/A')} - {e}"
             )
 
-    # Validaciones adicionales
     validate_coordinates(config["ENTRY"], config["EXIT"])
 
     if config["WIDTH"] <= 0 or config["HEIGHT"] <= 0:
@@ -255,23 +250,19 @@ def parse_config(config_path: str) -> Dict[str, Any]:
 
     return config
 
-# ============================================
-# ARCHIVO DE SALIDA
-# ============================================
-
 
 def write_output_file(filename: str, maze: MazeGenerator,
                       entry: Tuple[int, int], exit_: Tuple[int, int],
                       path: str) -> None:
     """
-    Escribe el laberinto en el archivo de salida en formato especificado.
+    Writes the maze to the output file in the specified format.
 
     Args:
-        filename: Nombre del archivo de salida.
-        maze: Generador de laberinto con el maze generado.
-        entry: Coordenadas de entrada.
-        exit_: Coordenadas de salida.
-        path: Camino de solución como string de direcciones.
+        filename: Name of the output file.
+        maze: Maze generator with the generated maze.
+        entry: Entry coordinates.
+        exit_: Exit coordinates.
+        path: Solution path as a string of directions.
     """
     hex_matrix = maze.to_hex_matrix()
 
@@ -288,20 +279,17 @@ def write_output_file(filename: str, maze: MazeGenerator,
     print(f"Laberinto guardado en: {filename}")
 
 
-# ============================================
-# PARSER DE ARCHIVO DE LABERINTO
-# ============================================
 def parse_maze_coordinate(line: str,
                           default: Tuple[int, int]) -> Tuple[int, int]:
     """
-    Parsea una línea de coordenadas del archivo de laberinto.
+    Parses a coordinate line from the maze file.
 
     Args:
-        line: Línea con formato "x,y".
-        default: Coordenadas por defecto si el parsing falla.
+        line: Line in the format "x,y".
+        default: Default coordinates if parsing fails.
 
     Returns:
-        Tupla con las coordenadas parseadas o las por defecto.
+        Tuple with the parsed coordinates or the defaults.
     """
     try:
         parts = line.replace(' ', '').split(',')
@@ -313,14 +301,14 @@ def parse_maze_coordinate(line: str,
 
 def normalize_hex_line(line: str, width: int) -> str:
     """
-    Normaliza una línea hexadecimal al ancho especificado.
+    Normalizes a hexadecimal line to the specified width.
 
     Args:
-        line: Línea hexadecimal a normalizar.
-        width: Ancho deseado.
+        line: Hexadecimal line to normalize.
+        width: Desired width.
 
     Returns:
-        Línea normalizada.
+        Normalized line.
     """
     if len(line) < width:
         return line.ljust(width, '0')
@@ -333,16 +321,16 @@ def parse_maze_file(file_path: str) -> Tuple[List[str], int, int,
                                              Tuple[int, int], Tuple[int, int],
                                              str]:
     """
-    Parsea un archivo de laberinto y devuelve sus componentes.
+    Parses a maze file and returns its components.
 
     Args:
-        file_path: Ruta al archivo de laberinto.
+        file_path: Path to the maze file.
 
     Returns:
-        Tupla con (hex_lines, width, height, entry, exit, path).
+        Tuple with (hex_lines, width, height, entry, exit, path).
 
     Raises:
-        ValueError: Si el archivo está vacío o no tiene líneas hexadecimales.
+        ValueError: If the file is empty or has no hexadecimal lines.
     """
     lines = read_file_lines(file_path)
 
@@ -354,7 +342,6 @@ def parse_maze_file(file_path: str) -> Tuple[List[str], int, int,
     exit_line = None
     path_line = None
 
-    # Clasificar líneas
     for line in lines:
         if re.fullmatch(r'[0-9A-Fa-f]+', line):
             hex_lines.append(line)
@@ -369,41 +356,44 @@ def parse_maze_file(file_path: str) -> Tuple[List[str], int, int,
         raise ValueError("No se encontraron líneas "
                          "hexadecimales en el archivo")
 
-    # Dimensiones
     width = len(hex_lines[0])
     height = len(hex_lines)
 
-    # Normalizar líneas hexadecimales
     hex_lines = [normalize_hex_line(line, width) for line in hex_lines]
 
-    # Parsear coordenadas
     entry = (parse_maze_coordinate(entry_line, (1, 1))
              if entry_line else (1, 1))
     exit_coords = (parse_maze_coordinate(exit_line, (width, height))
                    if exit_line else (width, height))
 
-    # Extraer camino
     path = (''.join(c.upper() for c in path_line if c.upper() in 'NSEW')
             if path_line else "")
 
     return hex_lines, width, height, entry, exit_coords, path
 
 
-# ============================================
-# VISUALIZACIÓN
-# ============================================
 def get_current_wall_color() -> int:
     """
-    Obtiene el color actual de las paredes.
+    Gets the current wall color.
 
     Returns:
-        Color hexadecimal de las paredes.
+        Hexadecimal wall color.
     """
     return ALT_WALL_COLORS[current_wall_color_index % len(ALT_WALL_COLORS)]
 
 
+def get_current_logo_color() -> int:
+    """
+    Gets the current 42 logo color.
+
+    Returns:
+        Hexadecimal color for closed cell fill.
+    """
+    return ALT_LOGO_COLORS[current_logo_color_index % len(ALT_LOGO_COLORS)]
+
+
 def cycle_wall_color() -> None:
-    """Cambia al siguiente color de pared disponible."""
+    """Cycles to the next available wall color."""
     global current_wall_color_index
     current_wall_color_index = (
         (current_wall_color_index + 1) % len(ALT_WALL_COLORS)
@@ -413,23 +403,33 @@ def cycle_wall_color() -> None:
     print(f"Color de pared cambiado (#{color_num}/{total_colors})")
 
 
+def cycle_logo_color() -> None:
+    """Cycles to the next available logo color."""
+    global current_logo_color_index
+    current_logo_color_index = (
+        (current_logo_color_index + 1) % len(ALT_LOGO_COLORS)
+    )
+    color_num = current_logo_color_index + 1
+    total_colors = len(ALT_LOGO_COLORS)
+    print(f"Color del logo cambiado (#{color_num}/{total_colors})")
+
+
 def is_cell_in_path(x: int, y: int, entry_coords: Tuple[int, int],
                     path: str, maze_width: int, maze_height: int) -> bool:
     """
-    Verifica si una celda está en el camino de solución.
+    Checks whether a cell is part of the solution path.
 
     Args:
-        x: Coordenada x de la celda (base-0).
-        y: Coordenada y de la celda (base-0).
-        entry_coords: Coordenadas de entrada (base-1).
-        path: String con el camino de solución.
-        maze_width: Ancho del laberinto.
-        maze_height: Alto del laberinto.
+        x: X coordinate of the cell (0-based).
+        y: Y coordinate of the cell (0-based).
+        entry_coords: Entry coordinates (1-based).
+        path: String with the solution path.
+        maze_width: Width of the maze.
+        maze_height: Height of the maze.
 
     Returns:
-        True si la celda está en el camino.
+        True if the cell is on the path.
     """
-    # Convertir a base-0
     entry_x, entry_y = entry_coords[0] - 1, entry_coords[1] - 1
 
     if (x, y) == (entry_x, entry_y):
@@ -463,22 +463,22 @@ def get_cell_background_color(j: int, i: int, is_entry: bool, is_exit: bool,
                               path: str, width: int, height: int,
                               is_42: bool) -> int:
     """
-    Determina el color de fondo de una celda.
+    Determines the background color of a cell.
 
     Args:
-        j: Coordenada x de la celda.
-        i: Coordenada y de la celda.
-        is_entry: Si es la celda de entrada.
-        is_exit: Si es la celda de salida.
-        show_path: Si se debe mostrar el camino.
-        entry_coords: Coordenadas de entrada.
-        path: String con el camino de solución.
-        width: Ancho del laberinto.
-        height: Alto del laberinto.
-        is_42: Si la celda es parte del patrón '42'.
+        j: X coordinate of the cell.
+        i: Y coordinate of the cell.
+        is_entry: Whether this is the entry cell.
+        is_exit: Whether this is the exit cell.
+        show_path: Whether the solution path should be displayed.
+        entry_coords: Entry coordinates.
+        path: String with the solution path.
+        width: Width of the maze.
+        height: Height of the maze.
+        is_42: Whether the cell is part of the '42' pattern.
 
     Returns:
-        Color hexadecimal para el fondo de la celda.
+        Hexadecimal color for the cell background.
     """
     if is_entry:
         return DEFAULT_ENTRY_COLOR
@@ -497,16 +497,16 @@ def draw_cell_background(mlx_ptr: Any, win_ptr: Any, x_start: int,
                          y_start: int, x_end: int, y_end: int,
                          color: int) -> None:
     """
-    Dibuja el fondo de una celda.
+    Draws the background of a cell.
 
     Args:
-        mlx_ptr: Puntero a MLX.
-        win_ptr: Puntero a la ventana.
-        x_start: Coordenada x inicial.
-        y_start: Coordenada y inicial.
-        x_end: Coordenada x final.
-        y_end: Coordenada y final.
-        color: Color del fondo.
+        mlx_ptr: Pointer to MLX.
+        win_ptr: Pointer to the window.
+        x_start: Starting x coordinate.
+        y_start: Starting y coordinate.
+        x_end: Ending x coordinate.
+        y_end: Ending y coordinate.
+        color: Background color.
     """
     if mlx_instance is None:
         return
@@ -520,17 +520,17 @@ def draw_wall(mlx_ptr: Any, win_ptr: Any, x_start: int, y_start: int,
               x_end: int, y_end: int, wall_type: str,
               wall_color: int) -> None:
     """
-    Dibuja una pared de la celda.
+    Draws a wall of a cell.
 
     Args:
-        mlx_ptr: Puntero a MLX.
-        win_ptr: Puntero a la ventana.
-        x_start: Coordenada x inicial.
-        y_start: Coordenada y inicial.
-        x_end: Coordenada x final.
-        y_end: Coordenada y final.
-        wall_type: Tipo de pared ('N', 'S', 'E', 'W').
-        wall_color: Color de la pared.
+        mlx_ptr: Pointer to MLX.
+        win_ptr: Pointer to the window.
+        x_start: Starting x coordinate.
+        y_start: Starting y coordinate.
+        x_end: Ending x coordinate.
+        y_end: Ending y coordinate.
+        wall_type: Wall type ('N', 'S', 'E', 'W').
+        wall_color: Wall color.
     """
     if mlx_instance is None:
         return
@@ -551,23 +551,27 @@ def draw_cell_walls(mlx_ptr: Any, win_ptr: Any, x_start: int, y_start: int,
                     x_end: int, y_end: int, hex_value: int,
                     wall_color: int) -> None:
     """
-    Dibuja las paredes de una celda basándose en su valor hexadecimal.
+    Draws the walls of a cell based on its hexadecimal value.
+
+    An active bit indicates a CLOSED wall (no passage), consistent
+    with _cell_to_hex.
+    Bits: N=0x1, E=0x2, S=0x4, W=0x8
 
     Args:
-        mlx_ptr: Puntero a MLX.
-        win_ptr: Puntero a la ventana.
-        x_start: Coordenada x inicial.
-        y_start: Coordenada y inicial.
-        x_end: Coordenada x final.
-        y_end: Coordenada y final.
-        hex_value: Valor hexadecimal de la celda.
-        wall_color: Color de las paredes.
+        mlx_ptr: Pointer to MLX.
+        win_ptr: Pointer to the window.
+        x_start: Starting x coordinate.
+        y_start: Starting y coordinate.
+        x_end: Ending x coordinate.
+        y_end: Ending y coordinate.
+        hex_value: Hexadecimal value of the cell.
+        wall_color: Wall color.
     """
     wall_bits = [
-        ('W', 0b1000),
-        ('S', 0b0100),
+        ('N', 0b0001),
         ('E', 0b0010),
-        ('N', 0b0001)
+        ('S', 0b0100),
+        ('W', 0b1000),
     ]
 
     for wall_type, bit_mask in wall_bits:
@@ -579,33 +583,32 @@ def draw_cell_walls(mlx_ptr: Any, win_ptr: Any, x_start: int, y_start: int,
 def draw_closed_cell_fill(mlx_ptr: Any, win_ptr: Any, x_start: int,
                           y_start: int, x_end: int, y_end: int) -> None:
     """
-    Dibuja el relleno de una celda completamente cerrada (patrón '42').
+    Draws the fill of a fully closed cell (part of the '42' pattern).
 
     Args:
-        mlx_ptr: Puntero a MLX.
-        win_ptr: Puntero a la ventana.
-        x_start: Coordenada x inicial.
-        y_start: Coordenada y inicial.
-        x_end: Coordenada x final.
-        y_end: Coordenada y final.
+        mlx_ptr: Pointer to MLX.
+        win_ptr: Pointer to the window.
+        x_start: Starting x coordinate.
+        y_start: Starting y coordinate.
+        x_end: Ending x coordinate.
+        y_end: Ending y coordinate.
     """
     if mlx_instance is None:
         return
 
+    color = get_current_logo_color()
     for x in range(x_start + 1, x_end - 1):
         for y in range(y_start + 1, y_end - 1):
-            mlx_instance.mlx_pixel_put(mlx_ptr, win_ptr, x, y,
-                                       DEFAULT_CLOSED_CELL_COLOR)
+            mlx_instance.mlx_pixel_put(mlx_ptr, win_ptr, x, y, color)
 
 
 def draw_maze(maze_state: Dict[str, Any]) -> None:
     """
-    Dibuja el laberinto en la ventana existente.
+    Draws the maze in the existing window.
 
     Args:
-        maze_state: Diccionario con el estado del laberinto.
+        maze_state: Dictionary with the maze state.
     """
-
     if not MLX_AVAILABLE or mlx_instance is None:
         print("MLX no está disponible, no se puede visualizar.")
         return
@@ -621,9 +624,6 @@ def draw_maze(maze_state: Dict[str, Any]) -> None:
 
     wall_color = get_current_wall_color()
 
-    mlx_instance.mlx_clear_window(mlx_ptr, win_ptr)
-
-    # Dibujar el laberinto
     for i in range(height):
         line = hex_lines[i]
 
@@ -636,7 +636,6 @@ def draw_maze(maze_state: Dict[str, Any]) -> None:
             is_entry = (j + 1 == entry_coords[0] and i + 1 == entry_coords[1])
             is_exit = (j + 1 == exit_coords[0] and i + 1 == exit_coords[1])
 
-            # Obtener valor hexadecimal
             hex_char = line[j].upper()
             if hex_char not in '0123456789ABCDEF':
                 continue
@@ -644,21 +643,17 @@ def draw_maze(maze_state: Dict[str, Any]) -> None:
             hex_value = int(hex_char, 16)
             is_42_cell = (hex_value == 0b1111)
 
-            # Color de fondo
             bg_color = get_cell_background_color(
                 j, i, is_entry, is_exit, show_path_state,
                 entry_coords, path, width, height, is_42_cell
             )
 
-            # Dibujar fondo
             draw_cell_background(mlx_ptr, win_ptr, x_start, y_start,
                                  x_end, y_end, bg_color)
 
-            # Dibujar paredes
             draw_cell_walls(mlx_ptr, win_ptr, x_start, y_start, x_end,
                             y_end, hex_value, wall_color)
 
-            # Celdas completamente cerradas (patrón '42')
             if is_42_cell:
                 draw_closed_cell_fill(mlx_ptr, win_ptr, x_start, y_start,
                                       x_end, y_end)
@@ -666,14 +661,14 @@ def draw_maze(maze_state: Dict[str, Any]) -> None:
 
 def create_window(width: int, height: int) -> Optional[Tuple[Any, Any]]:
     """
-    Crea una ventana MLX.
+    Creates an MLX window.
 
     Args:
-        width: Ancho del laberinto en celdas.
-        height: Alto del laberinto en celdas.
+        width: Maze width in cells.
+        height: Maze height in cells.
 
     Returns:
-        Tupla (mlx_ptr, win_ptr) o None si hay error.
+        Tuple (mlx_ptr, win_ptr) or None if an error occurs.
     """
     if not MLX_AVAILABLE or mlx_instance is None:
         return None
@@ -694,28 +689,143 @@ def create_window(width: int, height: int) -> Optional[Tuple[Any, Any]]:
 
 def print_maze_info(maze_data: Dict[str, Any]) -> None:
     """
-    Imprime información sobre el laberinto cargado.
+    Prints information about the loaded maze.
 
     Args:
-        maze_data: Diccionario con datos del laberinto.
+        maze_data: Dictionary with maze data.
     """
     print(f"\nLaberinto cargado: {maze_data['width']}x{maze_data['height']}")
     print(f"Entrada: {maze_data['entry_coords']}")
     print(f"Salida: {maze_data['exit_coords']}")
     print(f"Longitud del camino: {len(maze_data['path'])} pasos")
     print("\nControles:")
-    print("  Enter: Mostrar/ocultar camino")
-    print("  C: Cambiar color de paredes")
-    print("  1: Generar nuevo laberinto")
-    print("  ESC: Salir")
+    print("  Enter   : Mostrar/ocultar camino")
+    print("  C       : Cambiar color de paredes")
+    print("  L       : Cambiar color del logo 42")
+    print("  Flechas : Mover la entrada")
+    print("  1       : Generar nuevo laberinto")
+    print("  ESC     : Salir")
+
+
+def _find_path_from_hex(hex_lines: List[str], entry: Tuple[int, int],
+                        exit_coords: Tuple[int, int]) -> str:
+    """
+    Finds the shortest path using BFS directly on hex_lines.
+
+    Args:
+        hex_lines: Hexadecimal lines of the maze.
+        entry: Entry coordinates (1-based).
+        exit_coords: Exit coordinates (1-based).
+
+    Returns:
+        String with path directions (NSEW) or "" if no path exists.
+    """
+    height = len(hex_lines)
+    width = len(hex_lines[0]) if hex_lines else 0
+
+    ex, ey = entry[0] - 1, entry[1] - 1
+    fx, fy = exit_coords[0] - 1, exit_coords[1] - 1
+
+    if not (0 <= ex < width and 0 <= ey < height):
+        return ""
+    if not (0 <= fx < width and 0 <= fy < height):
+        return ""
+
+    moves = [
+        (-1,  0, 0x1, 0x4, 'N'),
+        (1,  0, 0x4, 0x1, 'S'),
+        (0,  1, 0x2, 0x8, 'E'),
+        (0, -1, 0x8, 0x2, 'W'),
+    ]
+
+    visited = [[False] * width for _ in range(height)]
+    prev: Dict[Tuple[int, int], Tuple[Tuple[int, int], str]] = {}
+    queue: deque = deque([(ey, ex)])
+    visited[ey][ex] = True
+
+    while queue:
+        y, x = queue.popleft()
+        if y == fy and x == fx:
+            break
+
+        hex_char = hex_lines[y][x].upper()
+        if hex_char not in '0123456789ABCDEF':
+            continue
+        cell_val = int(hex_char, 16)
+
+        for dy, dx, bit_cur, bit_nbr, direction in moves:
+            ny, nx = y + dy, x + dx
+            if not (0 <= ny < height and 0 <= nx < width):
+                continue
+            if cell_val & bit_cur:
+                continue
+            nbr_char = hex_lines[ny][nx].upper()
+            if nbr_char not in '0123456789ABCDEF':
+                continue
+            nbr_val = int(nbr_char, 16)
+            if nbr_val & bit_nbr:
+                continue
+            if visited[ny][nx]:
+                continue
+            visited[ny][nx] = True
+            prev[(ny, nx)] = ((y, x), direction)
+            queue.append((ny, nx))
+
+    if not visited[fy][fx]:
+        return ""
+
+    path = []
+    current = (fy, fx)
+    while current != (ey, ex):
+        previous, direction = prev[current]
+        path.append(direction)
+        current = previous
+
+    path.reverse()
+    return "".join(path)
+
+
+def move_entry(dx: int, dy: int) -> None:
+    """
+    Moves the entry point and recalculates the path.
+
+    Args:
+        dx: Displacement in x (-1, 0, 1).
+        dy: Displacement in y (-1, 0, 1).
+    """
+
+    if not maze_state:
+        return
+
+    old_x, old_y = maze_state['entry_coords']
+    new_x = old_x + dx
+    new_y = old_y + dy
+
+    if 1 <= new_x <= maze_state['width'] and 1 <= new_y \
+       <= maze_state['height']:
+        maze_state['entry_coords'] = (new_x, new_y)
+
+        new_path = _find_path_from_hex(
+            maze_state['hex_lines'],
+            maze_state['entry_coords'],
+            maze_state['exit_coords']
+        )
+        maze_state['path'] = new_path
+        print(f"Entrada movida a {maze_state['entry_coords']} – "
+              f"Camino: {len(new_path)} pasos")
+        if mlx_instance is None:
+            return
+        mlx_instance.mlx_clear_window(maze_state['mlx_ptr'],
+                                      maze_state['win_ptr'])
+        draw_maze(maze_state)
 
 
 def visualize_maze(maze_data: Dict[str, Any]) -> None:
     """
-    Inicializa la ventana y muestra el laberinto.
+    Initializes the window and displays the maze.
 
     Args:
-        maze_data: Diccionario con datos del laberinto.
+        maze_data: Dictionary with maze data.
     """
     global maze_state
 
@@ -723,8 +833,9 @@ def visualize_maze(maze_data: Dict[str, Any]) -> None:
         print("MLX no está disponible, no se puede visualizar.")
         return
 
-    # Crear o reutilizar ventana
-    if maze_state and maze_state.get('mlx_ptr') and maze_state.get('win_ptr'):
+    if (maze_state and
+            maze_state.get('mlx_ptr') is not None and
+            maze_state.get('win_ptr') is not None):
         mlx_ptr = maze_state['mlx_ptr']
         win_ptr = maze_state['win_ptr']
     else:
@@ -734,7 +845,6 @@ def visualize_maze(maze_data: Dict[str, Any]) -> None:
             sys.exit(1)
         mlx_ptr, win_ptr = window_result
 
-    # Actualizar estado global
     maze_state = {
         'mlx_ptr': mlx_ptr,
         'win_ptr': win_ptr,
@@ -746,111 +856,120 @@ def visualize_maze(maze_data: Dict[str, Any]) -> None:
         'path': maze_data['path']
     }
 
-    # Dibujar laberinto
     draw_maze(maze_state)
 
-    # Mostrar información
     print_maze_info(maze_data)
 
     if mlx_instance is None or win_ptr is None:
         print("Error: MLX no inicializado correctamente")
         return
 
-    # Configurar hooks
     mlx_instance.mlx_key_hook(win_ptr, handle_key_event, maze_state)
+    mlx_instance.mlx_hook(win_ptr, ON_DESTROY, 0, cleanup_window, None)
 
-    if mlx_instance is None:
-        print("Error: MLX instance es None")
-        return
-
-    # Loop principal
     try:
         mlx_instance.mlx_loop(mlx_ptr)
     except KeyboardInterrupt:
         print("\nVisualización interrumpida por el usuario.")
-        cleanup_window()
+        cleanup_window(None)
     except Exception as e:
         print(f"Error en el loop de mlx: {e}")
 
 
-# ============================================
-# MANEJADORES DE EVENTOS
-# ============================================
-def cleanup_window() -> None:
-    """Limpia y destruye la ventana MLX."""
+def cleanup_window(params: Any = None) -> int:
+    """
+    Cleans up and destroys the MLX window.
 
-    if not MLX_AVAILABLE:
-        return
+    Args:
+        params: Parameter required by mlx_hook (can be None).
+
+    Returns:
+        Always 0.
+    """
 
     if not maze_state:
-        return
+        return 0
 
-    # Obtener punteros del estado
     mlx_ptr = maze_state.get('mlx_ptr')
     win_ptr = maze_state.get('win_ptr')
 
-    # Verificar que no son None
-    if (
-     mlx_instance is not None
-     and mlx_ptr is not None
-     and win_ptr is not None
-    ):
+    if mlx_instance and mlx_ptr and win_ptr:
         try:
             mlx_instance.mlx_destroy_window(mlx_ptr, win_ptr)
         except Exception as e:
             print(f"Error al limpiar ventana: {e}")
-        finally:
-            # Limpiar referencias
-            maze_state['mlx_ptr'] = None
-            maze_state['win_ptr'] = None
+
+    os._exit(0)
+    return 0
 
 
 def handle_key_event(keynum: int, mystuff: Any) -> None:
     """
-    Maneja eventos de teclado.
+    Handles keyboard events.
 
     Args:
-        keynum: Código de la tecla presionada.
-        mystuff: Datos adicionales (no usado).
+        keynum: Key code of the pressed key.
+        mystuff: Additional data (unused).
     """
     global show_path_state
 
+    if not maze_state:
+        return
+
+    mlx_ptr = maze_state['mlx_ptr']
+    win_ptr = maze_state['win_ptr']
+
     if keynum == KEY_ESC:
-        cleanup_window()
-        sys.exit(0)
+        try:
+            if mlx_instance and mlx_ptr and win_ptr:
+                mlx_instance.mlx_destroy_window(mlx_ptr, win_ptr)
+        except Exception as e:
+            print(f"Error al cerrar ventana: {e}")
+        os._exit(0)
     elif keynum == KEY_ENTER:
-        # Alternar visualización del camino
-        cleanup_window()
         show_path_state = not show_path_state
         print(f"Mostrar camino: {show_path_state}")
         if maze_state:
-            see_maze()
+            if mlx_instance is None:
+                return
+            mlx_instance.mlx_clear_window(mlx_ptr, win_ptr)
+            draw_maze(maze_state)
     elif keynum == KEY_C:
-        # Cambiar color de paredes
         cycle_wall_color()
         if maze_state:
-            cleanup_window()
-            see_maze()
-    elif keynum == KEY_1:
-        # Generar nuevo laberinto
-        cleanup_window()
+            if mlx_instance is None:
+                return
+            mlx_instance.mlx_clear_window(mlx_ptr, win_ptr)
+            draw_maze(maze_state)
+    elif keynum == KEY_L:
+        cycle_logo_color()
         if maze_state:
-            maze_state['mlx_ptr'] = None
-            maze_state['win_ptr'] = None
+            if mlx_instance is None:
+                return
+            mlx_instance.mlx_clear_window(mlx_ptr, win_ptr)
+            draw_maze(maze_state)
+    elif keynum == KEY_1:
+        if mlx_instance is None:
+            return
+        mlx_instance.mlx_clear_window(mlx_ptr, win_ptr)
         generate_maze()
         see_maze()
+    elif keynum == KEY_UP:
+        move_entry(0, -1)
+    elif keynum == KEY_DOWN:
+        move_entry(0, 1)
+    elif keynum == KEY_LEFT:
+        move_entry(-1, 0)
+    elif keynum == KEY_RIGHT:
+        move_entry(1, 0)
 
 
-# ============================================
-# FUNCIONES PRINCIPALES
-# ============================================
 def generate_maze() -> None:
-    """Genera un nuevo laberinto basado en la configuración."""
+    """Generates a new maze based on the configuration."""
     try:
         config = parse_config(sys.argv[1])
         print("✓ Configuración parseada correctamente")
 
-        # Crear y generar laberinto
         print("Generando laberinto...")
         generator = MazeGenerator(
             width=config["WIDTH"],
@@ -862,17 +981,15 @@ def generate_maze() -> None:
         generator.generate(config["ENTRY"], config["EXIT"])
         print(f"✓ Laberinto generado: {config['WIDTH']}x{config['HEIGHT']}")
 
-        # Encontrar camino más corto
         print("Buscando camino más corto...")
         path = generator.shortest_path(entry=config["ENTRY"],
                                        exit_=config["EXIT"])
 
         if path:
-            print(f"✓ Camino encontrado: {len(path)} pasos")
+            print(f"Camino encontrado: {len(path)} pasos")
         else:
-            print("⚠ No se encontró camino")
+            print("No se encontró camino")
 
-        # Escribir archivo de salida
         write_output_file(
             config["OUTPUT_FILE"],
             generator,
@@ -886,7 +1003,7 @@ def generate_maze() -> None:
 
 
 def see_maze() -> None:
-    """Carga y visualiza un laberinto desde el archivo de salida."""
+    """Loads and visualizes a maze from the output file."""
     try:
         config = parse_config(sys.argv[1])
 
@@ -912,7 +1029,7 @@ def see_maze() -> None:
 
 
 def main() -> None:
-    """Función principal del programa."""
+    """Main function of the program."""
     if len(sys.argv) != 2:
         print("Uso: python3 a_maze_ing.py <archivo_configuracion>")
         sys.exit(1)
@@ -921,18 +1038,15 @@ def main() -> None:
         generate_maze()
         see_maze()
     except FileNotFoundError as e:
-        print(f"✗ Error: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     except ConfigError as e:
-        print(f"✗ Error de configuración: {e}", file=sys.stderr)
+        print(f"Error de configuración: {e}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"✗ Error inesperado: {e}", file=sys.stderr)
+        print(f"Error inesperado: {e}", file=sys.stderr)
         sys.exit(1)
 
 
-# ============================================
-# PUNTO DE ENTRADA
-# ============================================
 if __name__ == "__main__":
     main()

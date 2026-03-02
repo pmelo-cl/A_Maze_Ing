@@ -17,7 +17,6 @@ help:
 	@echo "  make debug        - Ejecutar en modo depuración"
 	@echo "  make clean        - Eliminar archivos temporales"
 	@echo "  make lint         - Ejecutar flake8 y mypy"
-	@echo "  make lint-strict  - Ejecutar flake8 y mypy con --strict"
 	@echo "  make help         - Mostrar esta ayuda"
 
 venv:
